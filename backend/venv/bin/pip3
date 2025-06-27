@@ -1,6 +1,4 @@
-#!/bin/sh
-'''exec' "/Users/chrissystevens/Desktop/GitHub/RETROFY STUDIO/retrofy-studio/backend/venv/bin/python3" "$0" "$@"
-' '''
+#!/Users/chrissystevens/Desktop/GitHub/retrofyStudio/backend/venv/bin/python3.13
 # -*- coding: utf-8 -*-
 import re
 import sys
