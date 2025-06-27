@@ -7,6 +7,23 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
+
+import unicodedata
+
+def remove_accents(text: str) -> str:
+    """
+    Remove accents from text to make searches more user-friendly
+    'Hermès' becomes 'Hermes'
+    """
+    if not text:
+        return ""
+    
+    # Normalize unicode characters and remove accents
+    normalized = unicodedata.normalize('NFD', text)
+    without_accents = ''.join(char for char in normalized if unicodedata.category(char) != 'Mn')
+    return without_accents
+
+
 app = FastAPI()
 
 # Create tables
@@ -36,9 +53,10 @@ def read_root():
     return {"message": "Hello from Retrofy Studio!"}
 
 # ENHANCED: GET /products with search parameters
+
 @app.get("/products")
 def get_products(
-    brand: Optional[str] = Query(None, description="Filter by brand (e.g., 'Chanel', 'Gucci')"),
+    brand: Optional[str] = Query(None, description="Filter by brand (e.g., 'Chanel', 'Gucci', 'Hermes')"),
     category: Optional[str] = Query(None, description="Filter by category (e.g., 'handbags', 'shoes')"),
     min_price: Optional[float] = Query(None, description="Minimum price filter"),
     max_price: Optional[float] = Query(None, description="Maximum price filter"),
@@ -49,38 +67,41 @@ def get_products(
     """
     Get products with optional search and filter parameters.
     
-    Example queries:
-    - /products (get all products)
-    - /products?brand=Chanel&max_price=2000
-    - /products?category=handbags&min_price=500&max_price=1500
-    - /products?platform_name=TheRealReal&color=black
+    Supports accent-insensitive brand searching:
+    - 'Hermes' finds 'Hermès' items
+    - 'hermes' finds 'Hermès' items  
+    - Case insensitive
     """
     db: Session = SessionLocal()
     try:
-        # Start with base query
-        query = db.query(Product)
+        # Get all products and filter in Python for reliability
+        all_products = db.query(Product).all()
+        filtered_products = []
         
-        # Apply filters based on query parameters
-        if brand:
-            query = query.filter(Product.brand.ilike(f"%{brand}%"))
+        for product in all_products:
+            # Apply brand filter (accent-insensitive)
+            if brand:
+                brand_clean = remove_accents(brand.lower())
+                product_brand = remove_accents(product.brand.lower()) if product.brand else ""
+                if brand_clean not in product_brand:
+                    continue
+            
+            # Apply other filters
+            if category and category.lower() not in (product.category or "").lower():
+                continue
+            if min_price is not None and product.price < min_price:
+                continue
+            if max_price is not None and product.price > max_price:
+                continue
+            if color and color.lower() not in (product.color or "").lower():
+                continue
+            if platform_name and platform_name.lower() not in (product.platform_name or "").lower():
+                continue
+            
+            filtered_products.append(product)
         
-        if category:
-            query = query.filter(Product.category.ilike(f"%{category}%"))
-        
-        if min_price is not None:
-            query = query.filter(Product.price >= min_price)
-        
-        if max_price is not None:
-            query = query.filter(Product.price <= max_price)
-        
-        if color:
-            query = query.filter(Product.color.ilike(f"%{color}%"))
-        
-        if platform_name:
-            query = query.filter(Product.platform_name.ilike(f"%{platform_name}%"))
-        
-        # Apply limit and execute query
-        products = query.limit(limit).all()
+        # Apply limit
+        products = filtered_products[:limit]
         
         return JSONResponse(content=jsonable_encoder(products))
 
@@ -106,61 +127,71 @@ def search_products(
     """
     Advanced search with general query and sorting options.
     
-    Now supports multi-word searches like "chanel bag" or "black leather"!
-    
-    Example: /products/search?q=chanel bag&max_price=3000&sort_by=price_asc
+    Supports:
+    - Single words: 'birkin', 'chanel', 'bag'
+    - Multi-word: 'birkin bag', 'chanel handbag'  
+    - Case insensitive: 'BIRKIN', 'birkin', 'Birkin'
+    - Accent insensitive: 'hermes' finds 'Hermès'
     """
     db: Session = SessionLocal()
     try:
-        query = db.query(Product)
+        # Get all products first, then filter in Python for reliability
+        all_products = db.query(Product).all()
+        filtered_products = []
         
-        # IMPROVED: Multi-word search logic
-        if q:
-            # Split search terms by spaces
-            search_terms = q.strip().split()
-            
-            if search_terms:
-                # For each search term, check if it appears in title, brand, OR description
-                search_conditions = []
+        for product in all_products:
+            # Check general search query
+            if q:
+                search_terms = q.strip().lower().split()
                 
+                # Create searchable text (title + brand + description)
+                searchable_text = ""
+                if product.title:
+                    searchable_text += remove_accents(product.title.lower()) + " "
+                if product.brand:
+                    searchable_text += remove_accents(product.brand.lower()) + " "
+                if product.description:
+                    searchable_text += remove_accents(product.description.lower()) + " "
+                
+                # Check if ALL search terms are found in the searchable text
+                all_terms_found = True
                 for term in search_terms:
-                    term_pattern = f"%{term}%"
-                    term_condition = (
-                        (Product.title.ilike(term_pattern)) |
-                        (Product.brand.ilike(term_pattern)) |
-                        (Product.description.ilike(term_pattern))
-                    )
-                    search_conditions.append(term_condition)
+                    term_clean = remove_accents(term.lower())
+                    if term_clean not in searchable_text:
+                        all_terms_found = False
+                        break
                 
-                # ALL search terms must be found (but can be in different fields)
-                # This means "chanel bag" finds items that have "chanel" somewhere AND "bag" somewhere
-                from sqlalchemy import and_
-                query = query.filter(and_(*search_conditions))
+                if not all_terms_found:
+                    continue
+            
+            # Apply brand filter (accent-insensitive)
+            if brand:
+                brand_clean = remove_accents(brand.lower())
+                product_brand = remove_accents(product.brand.lower()) if product.brand else ""
+                if brand_clean not in product_brand:
+                    continue
+            
+            # Apply other filters
+            if category and category.lower() not in (product.category or "").lower():
+                continue
+            if min_price is not None and product.price < min_price:
+                continue
+            if max_price is not None and product.price > max_price:
+                continue
+            
+            filtered_products.append(product)
         
-        # Apply specific filters (unchanged)
-        if brand:
-            query = query.filter(Product.brand.ilike(f"%{brand}%"))
-        
-        if category:
-            query = query.filter(Product.category.ilike(f"%{category}%"))
-        
-        if min_price is not None:
-            query = query.filter(Product.price >= min_price)
-        
-        if max_price is not None:
-            query = query.filter(Product.price <= max_price)
-        
-        # Apply sorting (unchanged)
+        # Apply sorting
         if sort_by == "price_asc":
-            query = query.order_by(Product.price.asc())
+            filtered_products.sort(key=lambda x: x.price or 0)
         elif sort_by == "price_desc":
-            query = query.order_by(Product.price.desc())
+            filtered_products.sort(key=lambda x: x.price or 0, reverse=True)
         elif sort_by == "brand":
-            query = query.order_by(Product.brand.asc())
-        else:  # default to id
-            query = query.order_by(Product.id.asc())
+            filtered_products.sort(key=lambda x: x.brand or "")
+        # default is no sorting (order by id)
         
-        products = query.limit(limit).all()
+        # Apply limit
+        products = filtered_products[:limit]
         
         return JSONResponse(content=jsonable_encoder(products))
 
