@@ -1,0 +1,11 @@
+version: "3.8"
+
+services:
+  db:
+    image: postgres:14
+    environment:
+      POSTGRES_USER: retrofy
+      POSTGRES_PASSWORD: retrofy_pass
+      POSTGRES_DB: retrofy_db
+    ports:
+      - "5432:5432"
