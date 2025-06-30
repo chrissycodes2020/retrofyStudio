@@ -1,7 +1,7 @@
 """
 Real Impact.com API Scraper for Retrofy Studio
 Pulls authentic luxury goods from TheRealReal via Impact.com API
-FIXED VERSION - Uses correct catalog endpoints
+FIXED VERSION - Uses correct catalog endpoints and brand extraction with DEBUG
 """
 
 import requests
@@ -167,7 +167,7 @@ class RealImpactScraper:
     
     def parse_impact_product(self, item) -> Dict:
         """
-        Convert Impact.com product data to Retrofy format - FIXED VERSION
+        Convert Impact.com product data to Retrofy format - FIXED VERSION WITH DEBUG
         """
         try:
             # Extract fields from the actual Impact.com structure
@@ -185,6 +185,10 @@ class RealImpactScraper:
             condition = item.get('Condition', '')
             material = item.get('Material', '')
             
+            # DEBUG OUTPUT
+            print(f"DEBUG - Raw brand from API: '{brand}'")
+            print(f"DEBUG - Title: '{title}'")
+            
             # Parse price
             price = 0.0
             if price_str:
@@ -193,9 +197,18 @@ class RealImpactScraper:
                 if price_match:
                     price = float(price_match.group().replace(',', ''))
             
-            # If brand is empty, extract from title or description
+            # FIXED: If brand is empty, extract from title first, then description
             if not brand:
-                brand = self.extract_brand_from_text(title + ' ' + description)
+                extracted_brand = self.extract_brand_from_text(title)
+                print(f"DEBUG - Extracted brand from title: '{extracted_brand}'")
+                brand = extracted_brand
+                if brand == "Unknown" or not brand:
+                    brand = self.extract_brand_from_text(description)
+                    print(f"DEBUG - Extracted brand from description: '{brand}'")
+            
+            print(f"DEBUG - Brand before clean_text: '{brand}'")
+            final_brand = self.clean_text(brand)
+            print(f"DEBUG - Brand after clean_text: '{final_brand}'")
             
             # If category is empty, categorize based on text
             if not category:
@@ -219,7 +232,7 @@ class RealImpactScraper:
             
             product = {
                 "title": self.clean_text(title),
-                "brand": self.clean_text(brand),
+                "brand": final_brand,  # Using the final_brand after clean_text
                 "category": category,
                 "color": self.clean_text(color),
                 "description": self.clean_text(enhanced_desc),
@@ -233,6 +246,8 @@ class RealImpactScraper:
                 "size": size
             }
             
+            print(f"DEBUG - FINAL PRODUCT BRAND: '{product['brand']}'")
+            
             return product
             
         except Exception as e:
@@ -240,30 +255,52 @@ class RealImpactScraper:
             return None
     
     def extract_brand_from_text(self, text: str) -> str:
-        """Extract brand from text"""
+        """Extract brand from text - prioritize title field"""
         # Handle cases where text might be a list
         if isinstance(text, list):
             text = ' '.join(str(item) for item in text)
         elif not isinstance(text, str):
             text = str(text)
+        
+        if not text or text.strip() == "":
+            return "Unknown"
             
         luxury_brands = [
             'Chanel', 'Louis Vuitton', 'Gucci', 'Hermès', 'Hermes', 'Prada', 'Bottega Veneta',
             'Saint Laurent', 'YSL', 'Balenciaga', 'Celine', 'Dior', 'Fendi', 'Givenchy',
             'Valentino', 'Tom Ford', 'Burberry', 'Cartier', 'Rolex', 'Tiffany',
             'Van Cleef', 'Bulgari', 'Christian Louboutin', 'Jimmy Choo', 'Manolo Blahnik',
-            'Bottega', 'Alexander McQueen', 'Versace', 'Armani', 'Dolce'
+            'Bottega', 'Alexander McQueen', 'Versace', 'Armani', 'Dolce', 'Isabel Marant',
+            'Jean Paul Gaultier', 'Miu Miu', 'Michael Kors', 'Jason Wu', 'Henry Beguelin',
+            'For Love & Lemons', 'Sachin & Babi', 'Momoni', 'Mercedes Castillo',
+            'I. Reiss', 'Jil Sander', 'Isaia', 'IWC'
         ]
         
         text_upper = text.upper()
         
+        # Check for exact brand matches first
         for brand in luxury_brands:
             if brand.upper() in text_upper:
                 return brand
         
-        # Extract first word as fallback
-        words = text.split()
-        return words[0] if words else "Unknown"
+        # If no luxury brand found, try to extract a reasonable brand name
+        # Clean the text first
+        cleaned_text = text.strip()
+        
+        # If the title/text is just a brand name (common case), return it
+        if len(cleaned_text.split()) <= 3 and not any(char.isdigit() for char in cleaned_text):
+            return cleaned_text
+        
+        # Extract first meaningful word(s) as fallback
+        words = cleaned_text.split()
+        if words:
+            # Skip common prefixes and get the actual brand
+            first_word = words[0]
+            # Don't return single digits or very short strings as brand names
+            if len(first_word) > 1 and not first_word.isdigit():
+                return first_word
+        
+        return "Unknown"
     
     def categorize_item(self, text: str) -> str:
         """Categorize based on text"""
@@ -311,25 +348,35 @@ class RealImpactScraper:
         return text.strip()
     
     def send_to_api(self, products: List[Dict]) -> bool:
-        """Send products to Retrofy API"""
+        """Send products to Retrofy API or save to file as backup"""
         if not products:
-            print("No products to send to API")
+            print("No products to send")
             return False
         
+        # Try API first
         try:
             url = f"{self.api_base_url}/seed_products"
-            
             print(f"Sending {len(products)} products to Retrofy API...")
-            
             response = requests.post(url, json=products)
             response.raise_for_status()
-            
             print("✅ Products successfully added to Retrofy database!")
             return True
             
         except Exception as e:
             print(f"❌ Error sending products to API: {str(e)}")
-            return False
+            print("💾 Saving products to file instead...")
+            
+            # Save to JSON file as backup
+            try:
+                filename = f"therealreal_products_{int(time.time())}.json"
+                with open(filename, 'w') as f:
+                    json.dump(products, f, indent=2)
+                print(f"✅ Products saved to {filename}")
+                print(f"🔥 {len(products)} authentic luxury products scraped successfully!")
+                return True
+            except Exception as file_error:
+                print(f"❌ Error saving to file: {str(file_error)}")
+                return False
     
     def run_real_scraping_session(self, limit=20):
         """
@@ -383,7 +430,20 @@ class RealImpactScraper:
         return len(products) > 0
 
 
-# Usage
+# DEBUG TEST
 if __name__ == "__main__":
     scraper = RealImpactScraper()
-    scraper.run_real_scraping_session(limit=30)  # Get 30 products
+    
+    # Test one real product to see the debug output
+    print("🧪 TESTING ONE REAL PRODUCT:")
+    raw_products = scraper.get_product_catalog(limit=1)
+    if raw_products:
+        item = raw_products[0]
+        print(f"Raw title from API: '{item.get('Name', '')}'")
+        
+        parsed_product = scraper.parse_impact_product(item)
+        if parsed_product:
+            print(f"Final brand in product: '{parsed_product['brand']}'")
+    
+    # Uncomment to run full scraping session
+    # scraper.run_real_scraping_session(limit=30)
