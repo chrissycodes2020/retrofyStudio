@@ -1,6 +1,7 @@
 """
 Real Impact.com API Scraper for Retrofy Studio
 Pulls authentic luxury goods from TheRealReal via Impact.com API
+FIXED VERSION - Uses correct catalog endpoints
 """
 
 import requests
@@ -37,54 +38,22 @@ class RealImpactScraper:
     
     def test_api_connection(self):
         """
-        Test the API connection with different possible formats
+        Test the API connection - FIXED VERSION
         """
-        print("🔍 Testing Impact.com API connection with different URL formats...")
-        
-        # Try different possible API base structures
-        api_bases = [
-            "https://api.impact.com",
-            "https://api.impact.com/Advertisers",  # From the curl example
-            "https://api.impact.com/Partners", 
-            "https://api.impact.com/Mediapartners"
-        ]
+        print("🔍 Testing Impact.com API connection...")
         
         try:
-            for base_url in api_bases:
-                print(f"\n🔍 Testing base URL: {base_url}")
-                
-                # Try different endpoint patterns
-                test_endpoints = [
-                    f"{base_url}/{self.account_sid}",
-                    f"{base_url}/{self.account_sid}/Campaigns",
-                    f"{base_url}/{self.account_sid}/Programs", 
-                    f"{base_url}/{self.account_sid}/Catalogs"
-                ]
-                
-                for endpoint in test_endpoints:
-                    print(f"  Testing: {endpoint}")
-                    response = self.session.get(endpoint)
-                    print(f"  Status: {response.status_code}")
-                    
-                    if response.status_code == 200:
-                        print("  ✅ SUCCESS! Found working endpoint!")
-                        data = response.json()
-                        self.impact_api_base = base_url  # Update base URL
-                        return True, data
-                    elif response.status_code == 401:
-                        print("  ❌ Authentication failed")
-                        return False, None
-                    elif response.status_code == 403:
-                        print("  ⚠️  Access denied (endpoint exists but no permission)")
-                    elif response.status_code == 404:
-                        print("  ❌ Not found")
-                    else:
-                        print(f"  ❌ Error: {response.status_code}")
-                        if response.text:
-                            print(f"    Response: {response.text[:100]}")
+            # Test the working endpoint we found
+            url = f"{self.impact_api_base}/Mediapartners/{self.account_sid}/Campaigns"
+            response = self.session.get(url)
             
-            print("\n❌ No working endpoints found")
-            return False, None
+            if response.status_code == 200:
+                data = response.json()
+                print("✅ API connection successful!")
+                return True, data
+            else:
+                print(f"❌ API connection failed: {response.status_code}")
+                return False, None
                 
         except Exception as e:
             print(f"❌ Connection error: {str(e)}")
@@ -97,22 +66,21 @@ class RealImpactScraper:
         print("🔍 Checking available campaigns/programs...")
         
         try:
-            # Use the working endpoint we found
-            url = f"{self.impact_api_base}/{self.account_sid}/Campaigns"
+            url = f"{self.impact_api_base}/Mediapartners/{self.account_sid}/Campaigns"
             response = self.session.get(url)
             
             if response.status_code == 200:
                 data = response.json()
-                items = data.get('Items', [])
+                campaigns = data.get('Campaigns', [])
                 
-                print(f"✅ Found {len(items)} available campaigns/programs:")
+                print(f"✅ Found {len(campaigns)} available campaigns:")
                 
-                if items:
-                    for item in items[:10]:  # Show first 10
-                        name = item.get('Name', 'Unknown')
-                        advertiser = item.get('AdvertiserName', 'Unknown')
-                        campaign_id = item.get('Id', 'Unknown')
-                        status = item.get('Status', 'Unknown')
+                if campaigns:
+                    for campaign in campaigns:
+                        name = campaign.get('CampaignName', 'Unknown')
+                        advertiser = campaign.get('AdvertiserName', 'Unknown')
+                        campaign_id = campaign.get('CampaignId', 'Unknown')
+                        status = campaign.get('ContractStatus', 'Unknown')
                         
                         print(f"  📋 {advertiser}: {name}")
                         print(f"      ID: {campaign_id} | Status: {status}")
@@ -123,16 +91,12 @@ class RealImpactScraper:
                             return campaign_id
                         
                         print()  # Empty line for readability
-                    
-                    if len(items) > 10:
-                        print(f"  ... and {len(items) - 10} more campaigns")
                 else:
-                    print("  📭 No campaigns found - you may need to apply to affiliate programs")
+                    print("  📭 No campaigns found")
                 
                 return None
             else:
                 print(f"❌ Error fetching campaigns: {response.status_code}")
-                print(f"Response: {response.text}")
                 return None
                 
         except Exception as e:
@@ -141,72 +105,85 @@ class RealImpactScraper:
     
     def get_product_catalog(self, campaign_id=None, limit=50):
         """
-        Get products from Impact.com catalog - PUBLISHER VERSION
+        Get products from Impact.com catalog - FIXED VERSION
         """
-        print(f"📦 Fetching products from Impact.com API (Publisher account)...")
+        print(f"📦 Fetching products from Impact.com Catalogs API...")
         
         try:
-            # Publisher endpoints for getting product data
-            endpoints_to_try = [
-                f"{self.impact_api_base}/Publishers/{self.account_sid}/Ads",
-                f"{self.impact_api_base}/Publishers/{self.account_sid}/Catalogs",
-                f"{self.impact_api_base}/Publishers/{self.account_sid}/ProductCatalog"
-            ]
+            # FIXED: Use the correct endpoint that works
+            catalog_url = f"{self.impact_api_base}/Mediapartners/{self.account_sid}/Catalogs"
             
-            if campaign_id:
-                endpoints_to_try.insert(0, 
-                    f"{self.impact_api_base}/Publishers/{self.account_sid}/Campaigns/{campaign_id}/Ads"
-                )
-                endpoints_to_try.insert(1,
-                    f"{self.impact_api_base}/Publishers/{self.account_sid}/Campaigns/{campaign_id}/Catalogs"
-                )
+            print(f"🔍 Getting available catalogs...")
+            response = self.session.get(catalog_url)
             
-            for endpoint in endpoints_to_try:
-                print(f"🔍 Trying endpoint: {endpoint}")
+            if response.status_code != 200:
+                print(f"❌ Error getting catalogs: {response.status_code}")
+                return []
+            
+            catalog_data = response.json()
+            catalogs = catalog_data.get('Catalogs', [])
+            
+            print(f"Found {len(catalogs)} catalogs")
+            
+            # Find TheRealReal catalog
+            realreal_catalog = None
+            for catalog in catalogs:
+                if 'realreal' in str(catalog).lower():
+                    realreal_catalog = catalog
+                    print(f"🎯 Found TheRealReal catalog: {catalog.get('Id')}")
+                    break
+            
+            if not realreal_catalog:
+                print("❌ TheRealReal catalog not found")
+                return []
+            
+            # Get products from TheRealReal catalog
+            catalog_id = realreal_catalog.get('Id')
+            products_url = f"{self.impact_api_base}/Mediapartners/{self.account_sid}/Catalogs/{catalog_id}/Items"
+            
+            params = {
+                'PageSize': limit,
+                'Page': 1
+            }
+            
+            print(f"🔍 Fetching {limit} products from catalog {catalog_id}...")
+            products_response = self.session.get(products_url, params=params)
+            
+            if products_response.status_code == 200:
+                products_data = products_response.json()
+                items = products_data.get('Items', [])
+                total = products_data.get('@total', 0)
                 
-                params = {
-                    'PageSize': limit,
-                    'Page': 1
-                }
+                print(f"✅ Found {len(items)} items (out of {total} total products)!")
+                return items
+            else:
+                print(f"❌ Error fetching products: {products_response.status_code}")
+                print(f"Response: {products_response.text[:200]}")
+                return []
                 
-                response = self.session.get(endpoint, params=params)
-                print(f"Response status: {response.status_code}")
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    items = data.get('Items', [])
-                    
-                    if items:
-                        print(f"✅ Found {len(items)} items!")
-                        print("Sample item keys:", list(items[0].keys()) if items else "None")
-                        return items
-                    else:
-                        print("📭 Endpoint returned empty results")
-                elif response.status_code == 404:
-                    print("❌ Endpoint not found")
-                elif response.status_code == 403:
-                    print("❌ Access denied (may need approval for this program)")
-                else:
-                    print(f"❌ Error {response.status_code}: {response.text[:200]}")
-            
-            print("❌ No products found from any endpoint")
-            return []
-            
         except Exception as e:
             print(f"❌ Error fetching products: {str(e)}")
             return []
     
     def parse_impact_product(self, item) -> Dict:
         """
-        Convert Impact.com product data to Retrofy format
+        Convert Impact.com product data to Retrofy format - FIXED VERSION
         """
         try:
-            # Extract fields (Impact.com structure may vary)
-            title = item.get('Name', '') or item.get('AdName', '') or item.get('ProductName', '')
-            description = item.get('Description', '') or item.get('AdDescription', '')
-            price_str = item.get('Price', '') or item.get('SalePrice', '') or item.get('Cost', '')
-            image_url = item.get('ImageUrl', '') or item.get('ThumbnailUrl', '')
-            product_url = item.get('TrackingUrl', '') or item.get('Url', '') or item.get('DestinationUrl', '')
+            # Extract fields from the actual Impact.com structure
+            title = item.get('Name', '')
+            description = item.get('Description', '')
+            price_str = item.get('CurrentPrice', '') or item.get('OriginalPrice', '')
+            image_url = item.get('ImageUrl', '')
+            product_url = item.get('Url', '')
+            
+            # Impact.com specific fields
+            brand = item.get('Manufacturer', '') or item.get('Text1', '')
+            category = item.get('Category', '') or item.get('SubCategory', '')
+            color = item.get('Colors', '')
+            size = item.get('Size', '')
+            condition = item.get('Condition', '')
+            material = item.get('Material', '')
             
             # Parse price
             price = 0.0
@@ -216,25 +193,44 @@ class RealImpactScraper:
                 if price_match:
                     price = float(price_match.group().replace(',', ''))
             
-            # Extract brand from title or description
-            brand = self.extract_brand_from_text(title + ' ' + description)
+            # If brand is empty, extract from title or description
+            if not brand:
+                brand = self.extract_brand_from_text(title + ' ' + description)
             
-            # Categorize item
-            category = self.categorize_item(title + ' ' + description)
+            # If category is empty, categorize based on text
+            if not category:
+                category = self.categorize_item(title + ' ' + description)
+            else:
+                # Clean up the category
+                category = category.lower().replace(' ', '_')
             
-            # Extract color
-            color = self.extract_color(title + ' ' + description)
+            # If color is empty, extract from text
+            if not color:
+                color = self.extract_color(title + ' ' + description)
+            
+            # Build enhanced description
+            enhanced_desc = description
+            if condition:
+                enhanced_desc += f" Condition: {condition}."
+            if material:
+                enhanced_desc += f" Material: {material}."
+            if size:
+                enhanced_desc += f" Size: {size}."
             
             product = {
                 "title": self.clean_text(title),
-                "brand": brand,
+                "brand": self.clean_text(brand),
                 "category": category,
-                "color": color,
-                "description": self.clean_text(description),
+                "color": self.clean_text(color),
+                "description": self.clean_text(enhanced_desc),
                 "price": price,
                 "image_url": image_url,
                 "platform_name": "TheRealReal",
-                "product_url": product_url
+                "product_url": product_url,
+                # Additional metadata
+                "condition": condition,
+                "material": material,
+                "size": size
             }
             
             return product
@@ -245,6 +241,12 @@ class RealImpactScraper:
     
     def extract_brand_from_text(self, text: str) -> str:
         """Extract brand from text"""
+        # Handle cases where text might be a list
+        if isinstance(text, list):
+            text = ' '.join(str(item) for item in text)
+        elif not isinstance(text, str):
+            text = str(text)
+            
         luxury_brands = [
             'Chanel', 'Louis Vuitton', 'Gucci', 'Hermès', 'Hermes', 'Prada', 'Bottega Veneta',
             'Saint Laurent', 'YSL', 'Balenciaga', 'Celine', 'Dior', 'Fendi', 'Givenchy',
@@ -298,6 +300,12 @@ class RealImpactScraper:
         if not text:
             return ""
         
+        # Handle cases where text might be a list
+        if isinstance(text, list):
+            text = ' '.join(str(item) for item in text)
+        elif not isinstance(text, str):
+            text = str(text)
+        
         text = ' '.join(text.split())
         text = re.sub(r'[^\w\s\-\(\)\.\,]', '', text)
         return text.strip()
@@ -325,7 +333,7 @@ class RealImpactScraper:
     
     def run_real_scraping_session(self, limit=20):
         """
-        Run real scraping session with Impact.com API
+        Run real scraping session with Impact.com API - FIXED VERSION
         """
         print("🚀 Starting REAL Impact.com API scraping session...")
         print("💎 Getting authentic luxury data from TheRealReal!")
@@ -336,10 +344,10 @@ class RealImpactScraper:
             print("❌ Cannot connect to Impact.com API")
             return False
         
-        # Find TheRealReal campaign
+        # Find TheRealReal campaign (for reference)
         campaign_id = self.get_therealreal_campaign_id()
         
-        # Get products
+        # Get products using the FIXED catalog method
         raw_products = self.get_product_catalog(campaign_id, limit)
         
         if not raw_products:

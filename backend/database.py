@@ -1,7 +1,7 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-DATABASE_URL = "postgresql://retrofy:retrofy_pass@localhost:5432/retrofy_db"
+DATABASE_URL = "sqlite:///./retrofy.db"
 
 # Create SQLAlchemy engine
 engine = create_engine(DATABASE_URL)
