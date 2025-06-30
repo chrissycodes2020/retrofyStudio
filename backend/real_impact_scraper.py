@@ -188,7 +188,7 @@ class RealImpactScraper:
             # DEBUG OUTPUT
             print(f"DEBUG - Raw brand from API: '{brand}'")
             print(f"DEBUG - Title: '{title}'")
-            
+
             # Parse price
             price = 0.0
             if price_str:
@@ -196,18 +196,18 @@ class RealImpactScraper:
                 price_match = re.search(r'[\d,]+\.?\d*', str(price_str))
                 if price_match:
                     price = float(price_match.group().replace(',', ''))
-            
-            # FIXED: If brand is empty, extract from title first, then description
-            if not brand:
-                extracted_brand = self.extract_brand_from_text(title)
-                print(f"DEBUG - Extracted brand from title: '{extracted_brand}'")
-                brand = extracted_brand
-                if brand == "Unknown" or not brand:
-                    brand = self.extract_brand_from_text(description)
-                    print(f"DEBUG - Extracted brand from description: '{brand}'")
-            
-            print(f"DEBUG - Brand before clean_text: '{brand}'")
-            final_brand = self.clean_text(brand)
+
+            # FIXED: Validate brand and extract from title if invalid
+            validated_brand = self.extract_brand_from_title_or_validate(title, brand)
+            print(f"DEBUG - Brand after validation: '{validated_brand}'")
+
+            # If still no valid brand, try description as fallback
+            if validated_brand == "Unknown" or not validated_brand:
+                validated_brand = self.extract_brand_from_text(description)
+                print(f"DEBUG - Extracted brand from description: '{validated_brand}'")
+
+            print(f"DEBUG - Brand before clean_text: '{validated_brand}'")
+            final_brand = self.clean_text(validated_brand)
             print(f"DEBUG - Brand after clean_text: '{final_brand}'")
             
             # If category is empty, categorize based on text
@@ -254,8 +254,27 @@ class RealImpactScraper:
             print(f"Error parsing product: {str(e)}")
             return None
     
+    def extract_brand_from_title_or_validate(self, title, brand):
+        """Extract brand from title when API brand is invalid (like '0', '1', etc.)"""
+        
+        # Invalid brand values that we should ignore
+        invalid_brands = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '', 'null', 'undefined', 'None']
+        
+        # Check if brand is invalid
+        if not brand or str(brand).strip() in invalid_brands:
+            print(f"DEBUG - Invalid brand '{brand}', extracting from title: '{title}'")
+            
+            # Use your existing extract_brand_from_text method
+            extracted_brand = self.extract_brand_from_text(title)
+            print(f"DEBUG - Extracted brand from title: {extracted_brand}")
+            return extracted_brand
+        
+        return brand
+    
     def extract_brand_from_text(self, text: str) -> str:
-        """Extract brand from text - prioritize title field"""
+        """Extract brand from text - prioritize title field with DEBUG"""
+        print(f"DEBUG - extract_brand_from_text called with: '{text}'")
+        
         # Handle cases where text might be a list
         if isinstance(text, list):
             text = ' '.join(str(item) for item in text)
@@ -263,7 +282,10 @@ class RealImpactScraper:
             text = str(text)
         
         if not text or text.strip() == "":
+            print(f"DEBUG - Text is empty, returning Unknown")
             return "Unknown"
+        
+        print(f"DEBUG - Processing text: '{text}'")
             
         luxury_brands = [
             'Chanel', 'Louis Vuitton', 'Gucci', 'Hermès', 'Hermes', 'Prada', 'Bottega Veneta',
@@ -277,29 +299,40 @@ class RealImpactScraper:
         ]
         
         text_upper = text.upper()
+        print(f"DEBUG - Text in uppercase: '{text_upper}'")
         
         # Check for exact brand matches first
         for brand in luxury_brands:
             if brand.upper() in text_upper:
+                print(f"DEBUG - Found luxury brand match: '{brand}'")
                 return brand
+        
+        print(f"DEBUG - No luxury brand found, using fallback logic")
         
         # If no luxury brand found, try to extract a reasonable brand name
         # Clean the text first
         cleaned_text = text.strip()
+        print(f"DEBUG - Cleaned text: '{cleaned_text}'")
         
         # If the title/text is just a brand name (common case), return it
         if len(cleaned_text.split()) <= 3 and not any(char.isdigit() for char in cleaned_text):
+            print(f"DEBUG - Short text without digits, returning as brand: '{cleaned_text}'")
             return cleaned_text
         
         # Extract first meaningful word(s) as fallback
         words = cleaned_text.split()
+        print(f"DEBUG - Words in text: {words}")
+        
         if words:
             # Skip common prefixes and get the actual brand
             first_word = words[0]
+            print(f"DEBUG - First word: '{first_word}'")
             # Don't return single digits or very short strings as brand names
             if len(first_word) > 1 and not first_word.isdigit():
+                print(f"DEBUG - Returning first word as brand: '{first_word}'")
                 return first_word
         
+        print(f"DEBUG - All fallbacks failed, returning Unknown")
         return "Unknown"
     
     def categorize_item(self, text: str) -> str:
