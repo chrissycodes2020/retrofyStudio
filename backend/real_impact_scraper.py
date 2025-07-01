@@ -377,7 +377,7 @@ class RealImpactScraper:
             text = str(text)
         
         text = ' '.join(text.split())
-        text = re.sub(r'[^\w\s\-\(\)\.\,]', '', text)
+        text = re.sub(r'[^\w\s\-\(\)\.\,\&]', '', text)
         return text.strip()
     
     def send_to_api(self, products: List[Dict]) -> bool:

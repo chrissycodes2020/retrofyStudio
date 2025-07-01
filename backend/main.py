@@ -52,7 +52,7 @@ def seed_products(products: List[ProductCreate]):
 def read_root():
     return {"message": "Hello from Retrofy Studio!"}
 
-# ENHANCED: GET /products with search parameters
+# ENHANCED: GET /products with search parameters - FIXED VERSION
 
 @app.get("/products")
 def get_products(
@@ -71,6 +71,7 @@ def get_products(
     - 'Hermes' finds 'Hermès' items
     - 'hermes' finds 'Hermès' items  
     - Case insensitive
+    - Searches BOTH brand field AND title field for brand names
     """
     db: Session = SessionLocal()
     try:
@@ -79,11 +80,20 @@ def get_products(
         filtered_products = []
         
         for product in all_products:
-            # Apply brand filter (accent-insensitive)
+            # IMPROVED: Apply brand filter (searches both brand and title fields)
             if brand:
                 brand_clean = remove_accents(brand.lower())
+                
+                # Check brand field
                 product_brand = remove_accents(product.brand.lower()) if product.brand else ""
-                if brand_clean not in product_brand:
+                brand_in_brand_field = brand_clean in product_brand
+                
+                # Check title field (where actual brand names are)
+                product_title = remove_accents(product.title.lower()) if product.title else ""
+                brand_in_title_field = brand_clean in product_title
+                
+                # If brand not found in either field, skip this product
+                if not brand_in_brand_field and not brand_in_title_field:
                     continue
             
             # Apply other filters
@@ -111,8 +121,7 @@ def get_products(
     finally:
         db.close()
 
-# NEW: Advanced search endpoint with general text search
-# REPLACE your /products/search endpoint in main.py with this improved version:
+# ENHANCED: Advanced search endpoint with general text search - FIXED VERSION
 
 @app.get("/products/search")
 def search_products(
@@ -132,6 +141,7 @@ def search_products(
     - Multi-word: 'birkin bag', 'chanel handbag'  
     - Case insensitive: 'BIRKIN', 'birkin', 'Birkin'
     - Accent insensitive: 'hermes' finds 'Hermès'
+    - Searches brand field AND title field for brand names
     """
     db: Session = SessionLocal()
     try:
@@ -164,11 +174,20 @@ def search_products(
                 if not all_terms_found:
                     continue
             
-            # Apply brand filter (accent-insensitive)
+            # IMPROVED: Apply brand filter (searches both brand and title fields)
             if brand:
                 brand_clean = remove_accents(brand.lower())
+                
+                # Check brand field
                 product_brand = remove_accents(product.brand.lower()) if product.brand else ""
-                if brand_clean not in product_brand:
+                brand_in_brand_field = brand_clean in product_brand
+                
+                # Check title field (where actual brand names are)
+                product_title = remove_accents(product.title.lower()) if product.title else ""
+                brand_in_title_field = brand_clean in product_title
+                
+                # If brand not found in either field, skip this product
+                if not brand_in_brand_field and not brand_in_title_field:
                     continue
             
             # Apply other filters
@@ -201,7 +220,7 @@ def search_products(
     finally:
         db.close()
 
-# NEW: Helper endpoint to get unique values for filters
+# Helper endpoint to get unique values for filters
 @app.get("/products/filters")
 def get_filter_options():
     """
