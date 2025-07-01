@@ -24,6 +24,60 @@ def remove_accents(text: str) -> str:
     return without_accents
 
 
+def smart_category_match(search_term: str, product) -> bool:
+    """
+    Smart category matching for better UX
+    If user searches for 'hat', find all items with 'hat' in title, description, or category
+    If user searches for 'shoes', find all footwear (sandals, boots, pumps, heels, etc.)
+    """
+    if not search_term:
+        return True
+    
+    search_lower = search_term.lower().strip()
+    
+    # Special handling for shoe-related searches
+    if search_lower in ['shoes', 'shoe']:
+        # Look for any footwear terms
+        footwear_terms = ['shoe', 'shoes', 'sandal', 'sandals', 'boot', 'boots', 
+                         'pump', 'pumps', 'heel', 'heels', 'sneaker', 'sneakers',
+                         'loafer', 'loafers', 'flat', 'flats', 'slingback']
+        
+        # Check in title, description, and category
+        search_text = f"{product.title or ''} {product.description or ''} {product.category or ''}".lower()
+        
+        for term in footwear_terms:
+            if term in search_text:
+                return True
+        return False
+    
+    # Special handling for heel searches
+    if search_lower in ['heels', 'heel']:
+        # Look for heel-related terms
+        heel_terms = ['heel', 'heels', 'pump', 'pumps', 'stiletto', 'stilettos']
+        
+        search_text = f"{product.title or ''} {product.description or ''} {product.category or ''}".lower()
+        
+        for term in heel_terms:
+            if term in search_text:
+                return True
+        return False
+    
+    # Regular matching for other categories
+    # Check actual category field
+    if product.category and search_lower in product.category.lower():
+        return True
+    
+    # Check title for item type
+    if product.title and search_lower in product.title.lower():
+        return True
+    
+    # Check description for item type  
+    if product.description and search_lower in product.description.lower():
+        return True
+    
+    return False
+
+
 app = FastAPI()
 
 # Create tables
@@ -52,12 +106,12 @@ def seed_products(products: List[ProductCreate]):
 def read_root():
     return {"message": "Hello from Retrofy Studio!"}
 
-# ENHANCED: GET /products with search parameters - FIXED VERSION
+# ENHANCED: GET /products with search parameters - FIXED VERSION WITH SMART CATEGORY SEARCH
 
 @app.get("/products")
 def get_products(
     brand: Optional[str] = Query(None, description="Filter by brand (e.g., 'Chanel', 'Gucci', 'Hermes')"),
-    category: Optional[str] = Query(None, description="Filter by category (e.g., 'handbags', 'shoes')"),
+    category: Optional[str] = Query(None, description="Smart category filter (e.g., 'hat', 'bag', 'shoe', 'dress', 'handbags', 'shoes')"),
     min_price: Optional[float] = Query(None, description="Minimum price filter"),
     max_price: Optional[float] = Query(None, description="Maximum price filter"),
     color: Optional[str] = Query(None, description="Filter by color"),
@@ -67,16 +121,17 @@ def get_products(
     """
     Get products with optional search and filter parameters.
     
-    Supports accent-insensitive brand searching:
-    - 'Hermes' finds 'Hermès' items
-    - 'hermes' finds 'Hermès' items  
-    - Case insensitive
-    - Searches BOTH brand field AND title field for brand names
+    Smart features:
+    - Smart category search: 'hat' finds all hats regardless of backend category
+    - Smart brand search: searches both brand field AND title field  
+    - Accent-insensitive: 'Hermes' finds 'Hermès' items
+    - Case insensitive searches
     """
     db: Session = SessionLocal()
     try:
         # Get all products and filter in Python for reliability
         all_products = db.query(Product).all()
+        print(f"DEBUG - Total products found: {len(all_products)}")  # DEBUG LINE ADDED
         filtered_products = []
         
         for product in all_products:
@@ -96,9 +151,19 @@ def get_products(
                 if not brand_in_brand_field and not brand_in_title_field:
                     continue
             
+            # NEW: Smart category filtering - searches title, description, and category
+            if category:
+                # DEBUG: Print the search
+                print(f"DEBUG - Searching for category: '{category}'")
+                if not smart_category_match(category, product):
+                    continue
+                else:
+                    print(f"DEBUG - MATCH found for product ID {product.id}: {product.title}")
+                    print(f"DEBUG - Description: {product.description[:100]}...")
+                    print(f"DEBUG - Category: {product.category}")
+                    print("---")
+                
             # Apply other filters
-            if category and category.lower() not in (product.category or "").lower():
-                continue
             if min_price is not None and product.price < min_price:
                 continue
             if max_price is not None and product.price > max_price:
@@ -121,27 +186,28 @@ def get_products(
     finally:
         db.close()
 
-# ENHANCED: Advanced search endpoint with general text search - FIXED VERSION
+# ENHANCED: Advanced search endpoint with general text search - FIXED VERSION WITH SMART CATEGORY SEARCH
 
 @app.get("/products/search")
 def search_products(
     q: Optional[str] = Query(None, description="General search query (searches title, brand, description)"),
     brand: Optional[str] = Query(None, description="Filter by brand"),
-    category: Optional[str] = Query(None, description="Filter by category"),
+    category: Optional[str] = Query(None, description="Smart category filter (e.g., 'hat', 'bag', 'shoe', 'dress')"),
     min_price: Optional[float] = Query(None, description="Minimum price"),
     max_price: Optional[float] = Query(None, description="Maximum price"),
     sort_by: Optional[str] = Query("id", description="Sort by: 'price_asc', 'price_desc', 'brand', 'id'"),
     limit: Optional[int] = Query(50, description="Maximum results")
 ):
     """
-    Advanced search with general query and sorting options.
+    Advanced search with smart category matching and sorting options.
     
-    Supports:
-    - Single words: 'birkin', 'chanel', 'bag'
-    - Multi-word: 'birkin bag', 'chanel handbag'  
-    - Case insensitive: 'BIRKIN', 'birkin', 'Birkin'
+    Smart features:
+    - General search: 'birkin bag', 'chanel handbag'
+    - Smart category: 'hat' finds all hats regardless of backend categorization
+    - Smart brand search: works across brand and title fields
     - Accent insensitive: 'hermes' finds 'Hermès'
-    - Searches brand field AND title field for brand names
+    - Case insensitive searches
+    - Flexible sorting options
     """
     db: Session = SessionLocal()
     try:
@@ -190,9 +256,12 @@ def search_products(
                 if not brand_in_brand_field and not brand_in_title_field:
                     continue
             
+            # NEW: Smart category filtering
+            if category:
+                if not smart_category_match(category, product):
+                    continue
+            
             # Apply other filters
-            if category and category.lower() not in (product.category or "").lower():
-                continue
             if min_price is not None and product.price < min_price:
                 continue
             if max_price is not None and product.price > max_price:
@@ -234,9 +303,10 @@ def get_filter_options():
         platforms = db.query(Product.platform_name).distinct().filter(Product.platform_name.isnot(None)).all()
         
         # Get price range
+        from sqlalchemy import func
         price_stats = db.query(
-            db.func.min(Product.price).label('min_price'),
-            db.func.max(Product.price).label('max_price')
+            func.min(Product.price).label('min_price'),
+            func.max(Product.price).label('max_price')
         ).first()
         
         return {
