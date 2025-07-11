@@ -200,14 +200,6 @@ def search_products(
 ):
     """
     Advanced search with smart category matching and sorting options.
-    
-    Smart features:
-    - General search: 'birkin bag', 'chanel handbag'
-    - Smart category: 'hat' finds all hats regardless of backend categorization
-    - Smart brand search: works across brand and title fields
-    - Accent insensitive: 'hermes' finds 'Hermès'
-    - Case insensitive searches
-    - Flexible sorting options
     """
     db: Session = SessionLocal()
     try:
@@ -216,7 +208,7 @@ def search_products(
         filtered_products = []
         
         for product in all_products:
-            # Check general search query
+            # Check general search query - IMPROVED LOGIC
             if q:
                 search_terms = q.strip().lower().split()
                 
@@ -229,18 +221,41 @@ def search_products(
                 if product.description:
                     searchable_text += remove_accents(product.description.lower()) + " "
                 
-                # Check if ALL search terms are found in the searchable text
-                all_terms_found = True
-                for term in search_terms:
-                    term_clean = remove_accents(term.lower())
+                # NEW: Smart multi-word search logic
+                if len(search_terms) == 1:
+                    # Single word search - keep existing logic
+                    term_clean = remove_accents(search_terms[0].lower())
                     if term_clean not in searchable_text:
-                        all_terms_found = False
-                        break
-                
-                if not all_terms_found:
-                    continue
+                        continue
+                else:
+                    # Multi-word search - check if this could be brand + category
+                    potential_brand = search_terms[0]
+                    potential_category = " ".join(search_terms[1:])
+                    
+                    # Check if first word is a brand
+                    brand_clean = remove_accents(potential_brand.lower())
+                    product_brand = remove_accents(product.brand.lower()) if product.brand else ""
+                    product_title = remove_accents(product.title.lower()) if product.title else ""
+                    
+                    brand_match = (brand_clean in product_brand) or (brand_clean in product_title)
+                    
+                    if brand_match:
+                        # If brand matches, check if category/item type matches using smart matching
+                        if not smart_category_match(potential_category, product):
+                            continue
+                    else:
+                        # If not brand + category, fall back to ALL terms must be found
+                        all_terms_found = True
+                        for term in search_terms:
+                            term_clean = remove_accents(term.lower())
+                            if term_clean not in searchable_text:
+                                all_terms_found = False
+                                break
+                        
+                        if not all_terms_found:
+                            continue
             
-            # IMPROVED: Apply brand filter (searches both brand and title fields)
+            # Apply brand filter (searches both brand and title fields)
             if brand:
                 brand_clean = remove_accents(brand.lower())
                 
@@ -256,7 +271,7 @@ def search_products(
                 if not brand_in_brand_field and not brand_in_title_field:
                     continue
             
-            # NEW: Smart category filtering
+            # Smart category filtering
             if category:
                 if not smart_category_match(category, product):
                     continue
@@ -276,7 +291,6 @@ def search_products(
             filtered_products.sort(key=lambda x: x.price or 0, reverse=True)
         elif sort_by == "brand":
             filtered_products.sort(key=lambda x: x.brand or "")
-        # default is no sorting (order by id)
         
         # Apply limit
         products = filtered_products[:limit]
