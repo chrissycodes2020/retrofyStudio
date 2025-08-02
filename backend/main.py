@@ -52,7 +52,9 @@ def smart_category_match(search_term: str, product) -> bool:
         'luggage': ['luggage', 'travel bag', 'travel', 'suitcase', 'duffle', 'carry on'],
         'shoulder': ['shoulder bag', 'shoulder bags', 'hobo', 'hobos'],
         'tote': ['tote', 'totes', 'tote bag', 'large bag'],
-        'totes': ['tote', 'totes', 'tote bag']
+        'totes': ['tote', 'totes', 'tote bag'],
+        'tote bag': ['tote', 'totes', 'tote bag', 'large bag'],
+        'tote bags': ['tote', 'totes', 'tote bag']
     }
     
     # CLOTHING CATEGORY (based on visual reference)
@@ -221,7 +223,7 @@ def smart_category_match(search_term: str, product) -> bool:
 SMART_CATEGORY_TERMS = [
     # Bags
     'bags', 'bag', 'handbags', 'handbag', 'backpacks', 'backpack', 'clutches', 'clutch',
-    'crossbody', 'luggage', 'shoulder', 'tote', 'totes',
+    'crossbody', 'luggage', 'shoulder', 'tote', 'totes', 'tote bag', 'tote bags'
     # Clothing  
     'clothing', 'clothes', 'blouses', 'blouse', 'coats', 'coat', 'denim', 'jeans',
     'dresses', 'dress', 'jackets', 'jacket', 'knitwear', 'knit', 'pants', 'trousers',
