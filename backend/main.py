@@ -301,20 +301,26 @@ def updated_search_logic(q, product):
         # Third: Check for platform + shoe type combinations
         if search_terms[0] == "platform" and len(search_terms) == 2:
             shoe_type = search_terms[1]
-            # Check if the product matches platform criteria AND the shoe type
-            has_platform = any(term in searchable_text.lower() for term in ['platform'])
+            # More precise platform detection - look for platform in shoe context
+            searchable_text = ""
+            if product.title:
+                searchable_text += remove_accents(product.title.lower()) + " "
+            if product.description:
+                searchable_text += remove_accents(product.description.lower()) + " "
+            
+            # Look for platform in shoe context, not just any mention
+            platform_shoe_terms = ['platform shoe', 'platform heel', 'platform boot', 'platform sandal', 
+                                 'platform sneaker', 'platform pump', 'platform wedge', 'platform sole',
+                                 'platform mule', 'platform flat', 'platform loafer']
+            
+            has_platform_shoe = any(term in searchable_text for term in platform_shoe_terms)
             has_shoe_type = smart_category_match(shoe_type, product)
             
-            if has_platform and has_shoe_type:
+            if has_platform_shoe and has_shoe_type:
                 return True
         
-        # Fourth: Try each individual word as a category
-        for term in search_terms:
-            if term in SMART_CATEGORY_TERMS:
-                if smart_category_match(term, product):
-                    return True
-        
-        # Fall back to regular "all terms must be found" search
+        # Fourth: For multi-word searches, require ALL terms to match contextually
+        # Don't just check individual words - that's too broad
         searchable_text = ""
         if product.title:
             searchable_text += remove_accents(product.title.lower()) + " "
