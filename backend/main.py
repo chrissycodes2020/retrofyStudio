@@ -25,8 +25,8 @@ def remove_accents(text: str) -> str:
 
 def smart_category_match(search_term: str, product) -> bool:
     """
-    COMPREHENSIVE smart category matching based on organizational chart
-    Matches the exact structure from the visual reference
+    COMPREHENSIVE smart category matching with full platform support
+    Handles ALL "platform + shoe type" combinations
     """
     if not search_term:
         return True
@@ -84,33 +84,63 @@ def smart_category_match(search_term: str, product) -> bool:
         'top': ['top', 'tops', 'blouse', 'shirt']
     }
     
-    # SHOE CATEGORY (based on visual reference)  
+    # SHOE CATEGORY with COMPREHENSIVE PLATFORM SUPPORT
     shoe_terms = {
         'shoes': ['shoe', 'shoes', 'boot', 'boots', 'espadrille', 'espadrilles', 'flat', 'flats',
                  'loafer', 'loafers', 'mule', 'mules', 'pump', 'pumps', 'sandal', 'sandals',
-                 'sneaker', 'sneakers', 'wedge', 'wedges', 'heel', 'heels'],
+                 'sneaker', 'sneakers', 'wedge', 'wedges', 'heel', 'heels', 'platform', 'platforms'],
         'shoe': ['shoe', 'shoes'],
         'boots': ['boot', 'boots', 'ankle boot', 'knee boot', 'thigh boot', 'combat boot', 
-                 'chelsea boot', 'riding boot', 'cowboy boot'],
-        'boot': ['boot', 'boots'],
-        'espadrilles': ['espadrille', 'espadrilles', 'rope sole', 'canvas shoe'],
-        'espadrille': ['espadrille', 'espadrilles'],
-        'flats': ['flat', 'flats', 'ballet flat', 'ballet flats', 'ballerina'],
-        'flat': ['flat', 'flats', 'ballet flat'],
-        'loafers': ['loafer', 'loafers', 'moccasin', 'moccasins', 'slip on'],
-        'loafer': ['loafer', 'loafers', 'moccasin'],
-        'mules': ['mule', 'mules', 'slide', 'slides', 'clog', 'clogs'],
-        'mule': ['mule', 'mules', 'slide'],
-        'pumps': ['pump', 'pumps', 'court shoe', 'heel', 'heels', 'high heel'],
-        'pump': ['pump', 'pumps', 'heel'],
-        'sandals': ['sandal', 'sandals', 'flip flop', 'flip flops', 'thong', 'slide'],
-        'sandal': ['sandal', 'sandals'],
-        'sneakers': ['sneaker', 'sneakers', 'trainer', 'trainers', 'athletic shoe', 'running shoe', 'tennis shoe'],
-        'sneaker': ['sneaker', 'sneakers', 'trainer'],
-        'wedges': ['wedge', 'wedges', 'wedge heel', 'platform'],
-        'wedge': ['wedge', 'wedges'],
-        'heels': ['heel', 'heels', 'pump', 'pumps', 'stiletto', 'stilettos', 'high heel'],
-        'heel': ['heel', 'heels', 'pump']
+                 'chelsea boot', 'riding boot', 'cowboy boot', 'platform boot', 'platform boots'],
+        'boot': ['boot', 'boots', 'platform boot'],
+        'espadrilles': ['espadrille', 'espadrilles', 'rope sole', 'canvas shoe', 'platform espadrille'],
+        'espadrille': ['espadrille', 'espadrilles', 'platform espadrille'],
+        'flats': ['flat', 'flats', 'ballet flat', 'ballet flats', 'ballerina', 'platform flat'],
+        'flat': ['flat', 'flats', 'ballet flat', 'platform flat'],
+        'loafers': ['loafer', 'loafers', 'moccasin', 'moccasins', 'slip on', 'platform loafer'],
+        'loafer': ['loafer', 'loafers', 'moccasin', 'platform loafer'],
+        'mules': ['mule', 'mules', 'slide', 'slides', 'clog', 'clogs', 'platform mule'],
+        'mule': ['mule', 'mules', 'slide', 'platform mule'],
+        'pumps': ['pump', 'pumps', 'court shoe', 'heel', 'heels', 'high heel', 'platform', 'platform pump'],
+        'pump': ['pump', 'pumps', 'heel', 'platform pump'],
+        'sandals': ['sandal', 'sandals', 'flip flop', 'flip flops', 'thong', 'slide', 'platform sandal'],
+        'sandal': ['sandal', 'sandals', 'platform sandal'],
+        'sneakers': ['sneaker', 'sneakers', 'trainer', 'trainers', 'athletic shoe', 'running shoe', 
+                    'tennis shoe', 'platform sneaker', 'platform trainer', 'platform tennis'],
+        'sneaker': ['sneaker', 'sneakers', 'trainer', 'platform sneaker', 'platform tennis'],
+        'wedges': ['wedge', 'wedges', 'wedge heel', 'platform', 'platform shoe', 'platform wedge'],
+        'wedge': ['wedge', 'wedges', 'platform wedge'],
+        'heels': ['heel', 'heels', 'pump', 'pumps', 'stiletto', 'stilettos', 'high heel', 'platform', 'platform heel'],
+        'heel': ['heel', 'heels', 'pump', 'platform heel'],
+        
+        # COMPREHENSIVE PLATFORM COMBINATIONS
+        'platform': ['platform', 'platforms', 'platform heel', 'platform shoe', 'platform pump', 'platform sandal', 
+                    'platform wedge', 'platform boot', 'platform sneaker', 'platform mule', 'platform flat',
+                    'platform loafer', 'platform espadrille'],
+        'platforms': ['platform', 'platforms', 'platform heel', 'platform shoe'],
+        
+        # Individual platform combinations
+        'platform heel': ['platform heel', 'platform heels', 'platform pump', 'platform', 'heel', 'heels'],
+        'platform heels': ['platform heel', 'platform heels', 'platform pump', 'platform'],
+        'platform boot': ['platform boot', 'platform boots', 'platform', 'boot', 'boots'],
+        'platform boots': ['platform boot', 'platform boots', 'platform'],
+        'platform sandal': ['platform sandal', 'platform sandals', 'platform', 'sandal', 'sandals'],
+        'platform sandals': ['platform sandal', 'platform sandals', 'platform'],
+        'platform sneaker': ['platform sneaker', 'platform sneakers', 'platform trainer', 'platform tennis', 'platform', 'sneaker', 'sneakers'],
+        'platform sneakers': ['platform sneaker', 'platform sneakers', 'platform trainer', 'platform tennis', 'platform'],
+        'platform tennis': ['platform tennis', 'platform sneaker', 'platform trainer', 'platform', 'tennis', 'sneaker'],
+        'platform wedge': ['platform wedge', 'platform wedges', 'platform', 'wedge', 'wedges'],
+        'platform wedges': ['platform wedge', 'platform wedges', 'platform'],
+        'platform pump': ['platform pump', 'platform pumps', 'platform heel', 'platform', 'pump', 'pumps'],
+        'platform pumps': ['platform pump', 'platform pumps', 'platform heel', 'platform'],
+        'platform mule': ['platform mule', 'platform mules', 'platform slide', 'platform', 'mule', 'mules'],
+        'platform mules': ['platform mule', 'platform mules', 'platform slide', 'platform'],
+        'platform flat': ['platform flat', 'platform flats', 'platform', 'flat', 'flats'],
+        'platform flats': ['platform flat', 'platform flats', 'platform'],
+        'platform loafer': ['platform loafer', 'platform loafers', 'platform', 'loafer', 'loafers'],
+        'platform loafers': ['platform loafer', 'platform loafers', 'platform'],
+        'platform espadrille': ['platform espadrille', 'platform espadrilles', 'platform', 'espadrille', 'espadrilles'],
+        'platform espadrilles': ['platform espadrille', 'platform espadrilles', 'platform']
     }
     
     # ACCESSORY CATEGORY (based on visual reference)
@@ -187,7 +217,7 @@ def smart_category_match(search_term: str, product) -> bool:
     return False
 
 
-# List of terms that should use smart category matching
+# UPDATED: List of terms that should use smart category matching
 SMART_CATEGORY_TERMS = [
     # Bags
     'bags', 'bag', 'handbags', 'handbag', 'backpacks', 'backpack', 'clutches', 'clutch',
@@ -200,6 +230,11 @@ SMART_CATEGORY_TERMS = [
     'shoes', 'shoe', 'boots', 'boot', 'espadrilles', 'espadrille', 'flats', 'flat',
     'loafers', 'loafer', 'mules', 'mule', 'pumps', 'pump', 'sandals', 'sandal',
     'sneakers', 'sneaker', 'wedges', 'wedge', 'heels', 'heel',
+    # Platform combinations
+    'platform', 'platforms', 'platform heel', 'platform heels', 'platform boot', 'platform boots',
+    'platform sandal', 'platform sandals', 'platform sneaker', 'platform sneakers', 'platform tennis',
+    'platform wedge', 'platform wedges', 'platform pump', 'platform pumps', 'platform mule', 'platform mules',
+    'platform flat', 'platform flats', 'platform loafer', 'platform loafers', 'platform espadrille', 'platform espadrilles',
     # Accessories
     'accessories', 'accessory', 'belts', 'belt', 'gloves', 'glove', 'hair', 'hats', 'hat',
     'jewelry', 'jewellery', 'necklace', 'necklaces', 'bracelet', 'bracelets', 'ring', 'rings',
@@ -213,8 +248,8 @@ SMART_CATEGORY_TERMS = [
 
 def updated_search_logic(q, product):
     """
-    Updated search logic for the /products/search endpoint
-    Uses comprehensive smart category matching
+    IMPROVED search logic with comprehensive platform support
+    Handles ALL platform + shoe type combinations intelligently
     """
     if not q:
         return True
@@ -241,7 +276,14 @@ def updated_search_logic(q, product):
             return term_clean in searchable_text
     
     else:
-        # Multi-word search logic (brand + category, etc.)
+        # Multi-word search logic - ENHANCED FOR PLATFORM COMBINATIONS
+        full_search = " ".join(search_terms)
+        
+        # First: Check if the full phrase is a recognized smart category
+        if full_search in SMART_CATEGORY_TERMS:
+            return smart_category_match(full_search, product)
+        
+        # Second: Check for brand + category combinations
         potential_brand = search_terms[0]
         potential_category = " ".join(search_terms[1:])
         
@@ -255,22 +297,38 @@ def updated_search_logic(q, product):
         if brand_match:
             # If brand matches, check category using smart matching
             return smart_category_match(potential_category, product)
-        else:
-            # Fall back to regular "all terms must be found" search
-            searchable_text = ""
-            if product.title:
-                searchable_text += remove_accents(product.title.lower()) + " "
-            if product.brand:
-                searchable_text += remove_accents(product.brand.lower()) + " "
-            if product.description:
-                searchable_text += remove_accents(product.description.lower()) + " "
+        
+        # Third: Check for platform + shoe type combinations
+        if search_terms[0] == "platform" and len(search_terms) == 2:
+            shoe_type = search_terms[1]
+            # Check if the product matches platform criteria AND the shoe type
+            has_platform = any(term in searchable_text.lower() for term in ['platform'])
+            has_shoe_type = smart_category_match(shoe_type, product)
             
-            # Check if ALL search terms are found
-            for term in search_terms:
-                term_clean = remove_accents(term.lower())
-                if term_clean not in searchable_text:
-                    return False
-            return True
+            if has_platform and has_shoe_type:
+                return True
+        
+        # Fourth: Try each individual word as a category
+        for term in search_terms:
+            if term in SMART_CATEGORY_TERMS:
+                if smart_category_match(term, product):
+                    return True
+        
+        # Fall back to regular "all terms must be found" search
+        searchable_text = ""
+        if product.title:
+            searchable_text += remove_accents(product.title.lower()) + " "
+        if product.brand:
+            searchable_text += remove_accents(product.brand.lower()) + " "
+        if product.description:
+            searchable_text += remove_accents(product.description.lower()) + " "
+        
+        # Check if ALL search terms are found
+        for term in search_terms:
+            term_clean = remove_accents(term.lower())
+            if term_clean not in searchable_text:
+                return False
+        return True
 
 
 app = FastAPI()
@@ -372,7 +430,7 @@ def get_products(
     finally:
         db.close()
 
-# ENHANCED: Advanced search endpoint with comprehensive smart matching
+# ENHANCED: Advanced search endpoint with comprehensive platform support
 @app.get("/products/search")
 def search_products(
     q: Optional[str] = Query(None, description="General search query (searches title, brand, description)"),
@@ -384,10 +442,11 @@ def search_products(
     limit: Optional[int] = Query(50, description="Maximum results")
 ):
     """
-    Advanced search with comprehensive smart category matching and sorting options.
+    Advanced search with comprehensive smart category matching and platform support.
     
     Smart features:
     - General search: 'birkin bag', 'chanel handbag', 'shoes', 'bags'
+    - Platform combinations: 'platform heel', 'platform boot', 'platform tennis', etc.
     - Smart category: matches ALL category types from organizational chart
     - Smart brand search: works across brand and title fields
     - Accent insensitive: 'hermes' finds 'Hermès'
