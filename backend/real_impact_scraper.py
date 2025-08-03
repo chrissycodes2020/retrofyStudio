@@ -1,7 +1,7 @@
 """
 Real Impact.com API Scraper for Retrofy Studio
 Pulls authentic luxury goods from TheRealReal via Impact.com API
-FIXED VERSION - Uses correct catalog endpoints and brand extraction with DEBUG
+UPDATED VERSION - Maximum diversity with pagination and randomization
 """
 
 import requests
@@ -103,11 +103,12 @@ class RealImpactScraper:
             print(f"❌ Error: {str(e)}")
             return None
     
-    def get_product_catalog(self, campaign_id=None, limit=50):
+    def get_product_catalog_with_max_diversity(self, campaign_id=None, target_products=1000):
         """
-        Get products from Impact.com catalog - FIXED VERSION
+        Get maximum diversity of products using pagination and smart sampling
         """
-        print(f"📦 Fetching products from Impact.com Catalogs API...")
+        print(f"📦 Fetching maximum diversity of products from Impact.com...")
+        print(f"🎯 Target: {target_products} diverse products")
         
         try:
             # FIXED: Use the correct endpoint that works
@@ -137,29 +138,95 @@ class RealImpactScraper:
                 print("❌ TheRealReal catalog not found")
                 return []
             
-            # Get products from TheRealReal catalog
+            # Get products from TheRealReal catalog with PAGINATION
             catalog_id = realreal_catalog.get('Id')
             products_url = f"{self.impact_api_base}/Mediapartners/{self.account_sid}/Catalogs/{catalog_id}/Items"
             
-            params = {
-                'PageSize': limit,
-                'Page': 1
-            }
+            # First, check total available products
+            test_params = {'PageSize': 10, 'Page': 1}
+            test_response = self.session.get(products_url, params=test_params)
             
-            print(f"🔍 Fetching {limit} products from catalog {catalog_id}...")
-            products_response = self.session.get(products_url, params=params)
-            
-            if products_response.status_code == 200:
-                products_data = products_response.json()
-                items = products_data.get('Items', [])
-                total = products_data.get('@total', 0)
-                
-                print(f"✅ Found {len(items)} items (out of {total} total products)!")
-                return items
-            else:
-                print(f"❌ Error fetching products: {products_response.status_code}")
-                print(f"Response: {products_response.text[:200]}")
+            if test_response.status_code != 200:
+                print(f"❌ Error testing products endpoint: {test_response.status_code}")
                 return []
+            
+            test_data = test_response.json()
+            total_available = test_data.get('@total', 0)
+            print(f"📊 Total products available in catalog: {total_available}")
+            
+            # Calculate optimal pagination strategy
+            page_size = min(100, target_products // 10)  # Reasonable page size
+            max_pages = min(50, (target_products // page_size) + 1)  # Don't go crazy with pages
+            
+            print(f"📄 Strategy: {page_size} products per page, up to {max_pages} pages")
+            
+            all_items = []
+            unique_titles = set()  # Track unique products to avoid duplicates
+            
+            # Strategy 1: Get products from multiple pages for diversity
+            pages_to_fetch = list(range(1, max_pages + 1))
+            
+            # Strategy 2: Randomize which pages we fetch for even more diversity
+            if len(pages_to_fetch) > 10:
+                # Sample random pages across the full range
+                max_possible_page = total_available // page_size
+                if max_possible_page > max_pages:
+                    random_pages = random.sample(range(1, min(max_possible_page, 100)), max_pages)
+                    pages_to_fetch = sorted(random_pages)
+                    print(f"🎲 Using random page sampling: {pages_to_fetch[:10]}...")
+            
+            for page_num in pages_to_fetch:
+                if len(all_items) >= target_products:
+                    print(f"🎯 Reached target of {target_products} products!")
+                    break
+                
+                params = {
+                    'PageSize': page_size,
+                    'Page': page_num
+                }
+                
+                print(f"🔍 Fetching page {page_num} (products {len(all_items)}/{target_products})...")
+                
+                try:
+                    products_response = self.session.get(products_url, params=params, timeout=30)
+                    
+                    if products_response.status_code == 200:
+                        products_data = products_response.json()
+                        items = products_data.get('Items', [])
+                        
+                        if not items:
+                            print(f"📭 Page {page_num} is empty, stopping pagination")
+                            break
+                        
+                        # Filter out duplicates
+                        new_items = 0
+                        for item in items:
+                            title = item.get('Name', '')
+                            if title and title not in unique_titles:
+                                unique_titles.add(title)
+                                all_items.append(item)
+                                new_items += 1
+                        
+                        print(f"    ✅ Page {page_num}: {new_items} new unique products")
+                        
+                        # Add small delay to be nice to the API
+                        time.sleep(0.5)
+                        
+                    else:
+                        print(f"    ❌ Error on page {page_num}: {products_response.status_code}")
+                        continue
+                        
+                except Exception as e:
+                    print(f"    ⚠️ Error fetching page {page_num}: {str(e)}")
+                    continue
+            
+            print(f"✅ Collected {len(all_items)} unique products from {len(pages_to_fetch)} pages!")
+            print(f"📈 Diversity achieved: {len(unique_titles)} unique product titles")
+            
+            # Final shuffle for even more randomness
+            random.shuffle(all_items)
+            
+            return all_items[:target_products]  # Return up to target amount
                 
         except Exception as e:
             print(f"❌ Error fetching products: {str(e)}")
@@ -167,7 +234,7 @@ class RealImpactScraper:
     
     def parse_impact_product(self, item) -> Dict:
         """
-        Convert Impact.com product data to Retrofy format - FIXED VERSION WITH DEBUG
+        Convert Impact.com product data to Retrofy format - UPDATED VERSION
         """
         try:
             # Extract fields from the actual Impact.com structure
@@ -184,10 +251,6 @@ class RealImpactScraper:
             size = item.get('Size', '')
             condition = item.get('Condition', '')
             material = item.get('Material', '')
-            
-            # DEBUG OUTPUT
-            print(f"DEBUG - Raw brand from API: '{brand}'")
-            print(f"DEBUG - Title: '{title}'")
 
             # Parse price
             price = 0.0
@@ -199,16 +262,12 @@ class RealImpactScraper:
 
             # FIXED: Validate brand and extract from title if invalid
             validated_brand = self.extract_brand_from_title_or_validate(title, brand)
-            print(f"DEBUG - Brand after validation: '{validated_brand}'")
 
             # If still no valid brand, try description as fallback
             if validated_brand == "Unknown" or not validated_brand:
                 validated_brand = self.extract_brand_from_text(description)
-                print(f"DEBUG - Extracted brand from description: '{validated_brand}'")
 
-            print(f"DEBUG - Brand before clean_text: '{validated_brand}'")
             final_brand = self.clean_text(validated_brand)
-            print(f"DEBUG - Brand after clean_text: '{final_brand}'")
             
             # If category is empty, categorize based on text
             if not category:
@@ -232,7 +291,7 @@ class RealImpactScraper:
             
             product = {
                 "title": self.clean_text(title),
-                "brand": final_brand,  # Using the final_brand after clean_text
+                "brand": final_brand,
                 "category": category,
                 "color": self.clean_text(color),
                 "description": self.clean_text(enhanced_desc),
@@ -245,8 +304,6 @@ class RealImpactScraper:
                 "material": material,
                 "size": size
             }
-            
-            print(f"DEBUG - FINAL PRODUCT BRAND: '{product['brand']}'")
             
             return product
             
@@ -262,18 +319,14 @@ class RealImpactScraper:
         
         # Check if brand is invalid
         if not brand or str(brand).strip() in invalid_brands:
-            print(f"DEBUG - Invalid brand '{brand}', extracting from title: '{title}'")
-            
             # Use your existing extract_brand_from_text method
             extracted_brand = self.extract_brand_from_text(title)
-            print(f"DEBUG - Extracted brand from title: {extracted_brand}")
             return extracted_brand
         
         return brand
     
     def extract_brand_from_text(self, text: str) -> str:
-        """Extract brand from text - prioritize title field with DEBUG"""
-        print(f"DEBUG - extract_brand_from_text called with: '{text}'")
+        """Extract brand from text - prioritize title field"""
         
         # Handle cases where text might be a list
         if isinstance(text, list):
@@ -282,10 +335,7 @@ class RealImpactScraper:
             text = str(text)
         
         if not text or text.strip() == "":
-            print(f"DEBUG - Text is empty, returning Unknown")
             return "Unknown"
-        
-        print(f"DEBUG - Processing text: '{text}'")
             
         luxury_brands = [
             'Chanel', 'Louis Vuitton', 'Gucci', 'Hermès', 'Hermes', 'Prada', 'Bottega Veneta',
@@ -299,40 +349,30 @@ class RealImpactScraper:
         ]
         
         text_upper = text.upper()
-        print(f"DEBUG - Text in uppercase: '{text_upper}'")
         
         # Check for exact brand matches first
         for brand in luxury_brands:
             if brand.upper() in text_upper:
-                print(f"DEBUG - Found luxury brand match: '{brand}'")
                 return brand
-        
-        print(f"DEBUG - No luxury brand found, using fallback logic")
         
         # If no luxury brand found, try to extract a reasonable brand name
         # Clean the text first
         cleaned_text = text.strip()
-        print(f"DEBUG - Cleaned text: '{cleaned_text}'")
         
         # If the title/text is just a brand name (common case), return it
         if len(cleaned_text.split()) <= 3 and not any(char.isdigit() for char in cleaned_text):
-            print(f"DEBUG - Short text without digits, returning as brand: '{cleaned_text}'")
             return cleaned_text
         
         # Extract first meaningful word(s) as fallback
         words = cleaned_text.split()
-        print(f"DEBUG - Words in text: {words}")
         
         if words:
             # Skip common prefixes and get the actual brand
             first_word = words[0]
-            print(f"DEBUG - First word: '{first_word}'")
             # Don't return single digits or very short strings as brand names
             if len(first_word) > 1 and not first_word.isdigit():
-                print(f"DEBUG - Returning first word as brand: '{first_word}'")
                 return first_word
         
-        print(f"DEBUG - All fallbacks failed, returning Unknown")
         return "Unknown"
     
     def categorize_item(self, text: str) -> str:
@@ -411,12 +451,13 @@ class RealImpactScraper:
                 print(f"❌ Error saving to file: {str(file_error)}")
                 return False
     
-    def run_real_scraping_session(self, limit=20):
+    def run_real_scraping_session(self, limit=1000):
         """
-        Run real scraping session with Impact.com API - FIXED VERSION
+        Run real scraping session with MAXIMUM DIVERSITY
         """
         print("🚀 Starting REAL Impact.com API scraping session...")
-        print("💎 Getting authentic luxury data from TheRealReal!")
+        print("💎 Getting maximum diversity of authentic luxury data from TheRealReal!")
+        print(f"🎯 Target: {limit} diverse products")
         
         # Test API connection
         success, campaigns_data = self.test_api_connection()
@@ -427,8 +468,8 @@ class RealImpactScraper:
         # Find TheRealReal campaign (for reference)
         campaign_id = self.get_therealreal_campaign_id()
         
-        # Get products using the FIXED catalog method
-        raw_products = self.get_product_catalog(campaign_id, limit)
+        # Get products using the ENHANCED method with maximum diversity
+        raw_products = self.get_product_catalog_with_max_diversity(campaign_id, limit)
         
         if not raw_products:
             print("❌ No products found")
@@ -436,25 +477,37 @@ class RealImpactScraper:
         
         # Parse products
         products = []
+        product_types = {}  # Track diversity
+        
         for item in raw_products:
             product = self.parse_impact_product(item)
             if product and product.get('title'):
                 products.append(product)
+                
+                # Track product diversity
+                category = product.get('category', 'other')
+                product_types[category] = product_types.get(category, 0) + 1
         
         if products:
             print(f"\n📦 Successfully parsed {len(products)} luxury products!")
             
-            # Show samples
+            # Show diversity stats
+            print(f"\n📊 Product diversity achieved:")
+            for category, count in sorted(product_types.items()):
+                print(f"  {category}: {count} products")
+            
+            # Show samples from different categories
             print("\n🔍 Sample products found:")
-            for i, product in enumerate(products[:3]):
-                print(f"{i+1}. {product['brand']} - {product['title']} - ${product['price']}")
+            for i, product in enumerate(products[:5]):
+                print(f"{i+1}. {product['brand']} - {product['title']} - ${product['price']} ({product['category']})")
             
             # Send to Retrofy API
             success = self.send_to_api(products)
             
             if success:
-                print(f"\n🎉 REAL SCRAPING COMPLETE! {len(products)} authentic luxury products added to Retrofy!")
-                print("🔥 Your luxury aggregator now has REAL inventory!")
+                print(f"\n🎉 REAL SCRAPING COMPLETE! {len(products)} diverse luxury products added to Retrofy!")
+                print("🔥 Your luxury aggregator now has REAL diverse inventory!")
+                print(f"🎯 Search for 'tote bag' should now work!")
             else:
                 print("\n❌ Failed to add products to database")
         else:
@@ -463,20 +516,10 @@ class RealImpactScraper:
         return len(products) > 0
 
 
-# DEBUG TEST
+# RUN WITH MAXIMUM DIVERSITY
 if __name__ == "__main__":
     scraper = RealImpactScraper()
     
-    # Test one real product to see the debug output
-    print("🧪 TESTING ONE REAL PRODUCT:")
-    raw_products = scraper.get_product_catalog(limit=1)
-    if raw_products:
-        item = raw_products[0]
-        print(f"Raw title from API: '{item.get('Name', '')}'")
-        
-        parsed_product = scraper.parse_impact_product(item)
-        if parsed_product:
-            print(f"Final brand in product: '{parsed_product['brand']}'")
-    
-    # Uncomment to run full scraping session
-    # scraper.run_real_scraping_session(limit=30)
+    # Run with maximum diversity to get tote bags and other products
+    print("🚀 RUNNING MAXIMUM DIVERSITY SCRAPING SESSION")
+    scraper.run_real_scraping_session(limit=1000)
