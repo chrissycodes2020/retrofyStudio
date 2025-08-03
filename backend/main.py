@@ -36,11 +36,11 @@ def smart_category_match(search_term: str, product) -> bool:
     # Create searchable text from all product fields
     search_text = f"{product.title or ''} {product.description or ''} {product.category or ''}".lower()
     
-    # BAG CATEGORY (based on visual reference)
+    # BAG CATEGORY (based on visual reference) - FIXED: Added tote bag entries
     bag_terms = {
         'bags': ['bag', 'bags', 'handbag', 'handbags', 'purse', 'purses', 'backpack', 'backpacks', 
                 'clutch', 'clutches', 'crossbody', 'cross body', 'shoulder bag', 'shoulder bags',
-                'luggage', 'travel', 'tote', 'totes'],
+                'luggage', 'travel', 'tote', 'totes', 'tote bag', 'tote bags'],
         'bag': ['bag', 'bags', 'handbag', 'handbags', 'purse', 'purses'],
         'handbags': ['handbag', 'handbags', 'bag', 'bags', 'purse', 'purses'],
         'handbag': ['handbag', 'handbags', 'bag', 'bags'],
@@ -52,7 +52,9 @@ def smart_category_match(search_term: str, product) -> bool:
         'luggage': ['luggage', 'travel bag', 'travel', 'suitcase', 'duffle', 'carry on'],
         'shoulder': ['shoulder bag', 'shoulder bags', 'hobo', 'hobos'],
         'tote': ['tote', 'totes', 'tote bag', 'large bag'],
-        'totes': ['tote', 'totes', 'tote bag']
+        'totes': ['tote', 'totes', 'tote bag'],
+        'tote bag': ['tote', 'totes', 'tote bag', 'large bag', 'bag'],
+        'tote bags': ['tote', 'totes', 'tote bag', 'bag']
     }
     
     # CLOTHING CATEGORY (based on visual reference)
@@ -217,11 +219,11 @@ def smart_category_match(search_term: str, product) -> bool:
     return False
 
 
-# UPDATED: List of terms that should use smart category matching
+# UPDATED: List of terms that should use smart category matching - FIXED: Added tote bag entries
 SMART_CATEGORY_TERMS = [
     # Bags
     'bags', 'bag', 'handbags', 'handbag', 'backpacks', 'backpack', 'clutches', 'clutch',
-    'crossbody', 'luggage', 'shoulder', 'tote', 'totes',
+    'crossbody', 'luggage', 'shoulder', 'tote', 'totes', 'tote bag', 'tote bags',
     # Clothing  
     'clothing', 'clothes', 'blouses', 'blouse', 'coats', 'coat', 'denim', 'jeans',
     'dresses', 'dress', 'jackets', 'jacket', 'knitwear', 'knit', 'pants', 'trousers',
@@ -244,98 +246,6 @@ SMART_CATEGORY_TERMS = [
     'alaia', 'balmain', 'bottega', 'burberry', 'chloe', 'dolce', 'fendi', 'gianvito',
     'givenchy', 'gucci', 'isabel', 'lanvin', 'miu', 'oscar', 'prada', 'saint', 'valentino'
 ]
-
-
-# ORIGINAL FUNCTION - COMMENTED OUT FOR DEBUGGING
-# def updated_search_logic(q, product):
-#     """
-#     IMPROVED search logic with comprehensive platform support
-#     Handles ALL platform + shoe type combinations intelligently
-#     """
-#     if not q:
-#         return True
-#         
-#     search_terms = q.strip().lower().split()
-#     
-#     if len(search_terms) == 1:
-#         search_term = search_terms[0]
-#         
-#         if search_term in SMART_CATEGORY_TERMS:
-#             # Use smart category matching
-#             return smart_category_match(search_term, product)
-#         else:
-#             # Regular text search for brands, materials, etc.
-#             searchable_text = ""
-#             if product.title:
-#                 searchable_text += remove_accents(product.title.lower()) + " "
-#             if product.brand:
-#                 searchable_text += remove_accents(product.brand.lower()) + " "
-#             if product.description:
-#                 searchable_text += remove_accents(product.description.lower()) + " "
-#             
-#             term_clean = remove_accents(search_term)
-#             return term_clean in searchable_text
-#     
-#     else:
-#         # Multi-word search logic - ENHANCED FOR PLATFORM COMBINATIONS
-#         full_search = " ".join(search_terms)
-#         
-#         # First: Check if the full phrase is a recognized smart category
-#         if full_search in SMART_CATEGORY_TERMS:
-#             return smart_category_match(full_search, product)
-#         
-#         # Second: Check for brand + category combinations
-#         potential_brand = search_terms[0]
-#         potential_category = " ".join(search_terms[1:])
-#         
-#         # Check if first word is a brand
-#         brand_clean = remove_accents(potential_brand.lower())
-#         product_brand = remove_accents(product.brand.lower()) if product.brand else ""
-#         product_title = remove_accents(product.title.lower()) if product.title else ""
-#         
-#         brand_match = (brand_clean in product_brand) or (brand_clean in product_title)
-#         
-#         if brand_match:
-#             # If brand matches, check category using smart matching
-#             return smart_category_match(potential_category, product)
-#         
-#         # Third: Check for platform + shoe type combinations
-#         if search_terms[0] == "platform" and len(search_terms) == 2:
-#             shoe_type = search_terms[1]
-#             # More precise platform detection - look for platform in shoe context
-#             searchable_text = ""
-#             if product.title:
-#                 searchable_text += remove_accents(product.title.lower()) + " "
-#             if product.description:
-#                 searchable_text += remove_accents(product.description.lower()) + " "
-#             
-#             # Look for platform in shoe context, not just any mention
-#             platform_shoe_terms = ['platform shoe', 'platform heel', 'platform boot', 'platform sandal', 
-#                                  'platform sneaker', 'platform pump', 'platform wedge', 'platform sole',
-#                                  'platform mule', 'platform flat', 'platform loafer']
-#             
-#             has_platform_shoe = any(term in searchable_text for term in platform_shoe_terms)
-#             has_shoe_type = smart_category_match(shoe_type, product)
-#             
-#             if has_platform_shoe and has_shoe_type:
-#                 return True
-#         
-#         # Fourth: For multi-word searches, require ALL terms to match contextually
-#         # Don't just check individual words - that's too broad
-#         searchable_text = ""
-#         if product.title:
-#             searchable_text += remove_accents(product.title.lower()) + " "
-#         if product.brand:
-#             searchable_text += remove_accents(product.brand.lower()) + " "
-#         if product.description:
-#             searchable_text += remove_accents(product.description.lower()) + " "
-#         
-#         # Check if ALL search terms are found
-#         for term in search_terms:
-#             term_clean = remove_accents(term.lower())
-#             if term_clean not in searchable_text:
-#                 return False
-#         return True
 
 
 def updated_search_logic(q, product):
@@ -641,6 +551,7 @@ def debug_search_endpoint(q: str):
         }
     finally:
         db.close()
+
 @app.get("/products/filters")
 def get_filter_options():
     """
