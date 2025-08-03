@@ -1,7 +1,7 @@
 """
 Real Impact.com API Scraper for Retrofy Studio
 Pulls authentic luxury goods from TheRealReal via Impact.com API
-UPDATED VERSION - Maximum diversity with pagination and randomization
+DEBUG VERSION - Includes debugging to see what API is actually returning
 """
 
 import requests
@@ -58,6 +58,114 @@ class RealImpactScraper:
         except Exception as e:
             print(f"❌ Connection error: {str(e)}")
             return False, None
+    
+    def debug_api_responses(self):
+        """DEBUG: See what the API is actually returning across different pages"""
+        print("🔍 DEBUGGING API RESPONSES...")
+        print("=" * 60)
+        
+        try:
+            catalog_url = f"{self.impact_api_base}/Mediapartners/{self.account_sid}/Catalogs"
+            response = self.session.get(catalog_url)
+            
+            if response.status_code != 200:
+                print(f"❌ Error getting catalogs: {response.status_code}")
+                return
+            
+            catalog_data = response.json()
+            catalogs = catalog_data.get('Catalogs', [])
+            
+            print(f"📋 Found {len(catalogs)} total catalogs")
+            
+            # Show ALL catalogs first
+            print("\n🔍 ALL AVAILABLE CATALOGS:")
+            for i, catalog in enumerate(catalogs):
+                print(f"  {i+1}. {catalog}")
+                
+            # Find TheRealReal catalog
+            realreal_catalog = None
+            for catalog in catalogs:
+                if 'realreal' in str(catalog).lower():
+                    realreal_catalog = catalog
+                    print(f"\n🎯 FOUND THEREALREAL CATALOG: {catalog}")
+                    break
+            
+            if not realreal_catalog:
+                print("❌ No TheRealReal catalog found")
+                return
+            
+            catalog_id = realreal_catalog.get('Id')
+            products_url = f"{self.impact_api_base}/Mediapartners/{self.account_sid}/Catalogs/{catalog_id}/Items"
+            
+            print(f"\n📦 TESTING PRODUCTS FROM CATALOG {catalog_id}")
+            print("=" * 60)
+            
+            # Test multiple pages to see if we get different products
+            pages_to_test = [1, 2, 3, 5, 10, 15, 20, 25, 30]
+            all_unique_products = set()
+            
+            for page in pages_to_test:
+                params = {'PageSize': 10, 'Page': page}
+                
+                try:
+                    response = self.session.get(products_url, params=params, timeout=10)
+                    
+                    if response.status_code == 200:
+                        data = response.json()
+                        items = data.get('Items', [])
+                        total = data.get('@total', 0)
+                        
+                        print(f"\n📄 PAGE {page}:")
+                        print(f"  ✅ Status: Success")
+                        print(f"  📊 Total products available: {total}")
+                        print(f"  📦 Items on this page: {len(items)}")
+                        
+                        if items:
+                            print(f"  🔍 Products found:")
+                            for i, item in enumerate(items):
+                                name = item.get('Name', 'No name')
+                                price = item.get('CurrentPrice', 'No price')
+                                product_id = item.get('Id', 'No ID')
+                                category = item.get('Category', 'No category')
+                                
+                                # Track unique products
+                                all_unique_products.add(name)
+                                
+                                print(f"    {i+1}. {name}")
+                                print(f"       Price: {price} | Category: {category}")
+                                print(f"       ID: {product_id}")
+                        else:
+                            print(f"  📭 No items found on page {page}")
+                            break  # No more pages
+                    else:
+                        print(f"\n📄 PAGE {page}: ❌ Error {response.status_code}")
+                        if response.status_code == 404:
+                            print(f"    (Page {page} doesn't exist)")
+                            break
+                        
+                except Exception as e:
+                    print(f"\n📄 PAGE {page}: ⚠️ Exception: {str(e)}")
+                
+                # Small delay between requests
+                time.sleep(0.5)
+            
+            print(f"\n" + "=" * 60)
+            print(f"📊 SUMMARY:")
+            print(f"  🎯 Total unique products found: {len(all_unique_products)}")
+            print(f"  📄 Pages tested: {len(pages_to_test)}")
+            
+            if len(all_unique_products) <= 5:
+                print(f"  ⚠️  WARNING: Very low diversity! Only {len(all_unique_products)} unique products")
+                print(f"  🔍 This suggests API limitations or catalog restrictions")
+            else:
+                print(f"  ✅ Good diversity found!")
+            
+            print(f"\n🔍 UNIQUE PRODUCT NAMES FOUND:")
+            for i, product_name in enumerate(sorted(all_unique_products), 1):
+                print(f"  {i}. {product_name}")
+                
+        except Exception as e:
+            print(f"❌ Debug error: {str(e)}")
     
     def get_therealreal_campaign_id(self):
         """
@@ -234,7 +342,7 @@ class RealImpactScraper:
     
     def parse_impact_product(self, item) -> Dict:
         """
-        Convert Impact.com product data to Retrofy format - UPDATED VERSION
+        Convert Impact.com product data to Retrofy format
         """
         try:
             # Extract fields from the actual Impact.com structure
@@ -516,10 +624,22 @@ class RealImpactScraper:
         return len(products) > 0
 
 
-# RUN WITH MAXIMUM DIVERSITY
+# RUN DEBUG MODE TO SEE WHAT'S HAPPENING
 if __name__ == "__main__":
     scraper = RealImpactScraper()
     
-    # Run with maximum diversity to get tote bags and other products
-    print("🚀 RUNNING MAXIMUM DIVERSITY SCRAPING SESSION")
-    scraper.run_real_scraping_session(limit=1000)
+    print("🔍 RUNNING DEBUG MODE TO ANALYZE API RESPONSES")
+    print("=" * 80)
+    
+    # First run debug to see what's actually happening
+    scraper.debug_api_responses()
+    
+    print("\n" + "=" * 80)
+    print("🤔 Based on the debug results above:")
+    print("   - If you see many unique products: API is working well")
+    print("   - If you see only 1-5 products repeated: API access is limited")
+    print("   - If you see errors: There might be API issues")
+    
+    # Optionally run the full scraper after debug
+    # print("\n🚀 RUNNING FULL SCRAPER...")
+    # scraper.run_real_scraping_session(limit=100)
